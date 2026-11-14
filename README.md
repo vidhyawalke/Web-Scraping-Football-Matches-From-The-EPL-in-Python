@@ -1,9 +1,6 @@
-<h1 align="center">⚽ Web Scraping and Match Prediction for the English Premier League</h1>
+# Web Scraping and Match Prediction for the English Premier League
 
-<p align="center">
-  An end-to-end data engineering and machine learning pipeline to collect historical match statistics from FBref and predict Premier League fixture outcomes.<br/>
-  Real data. Real techniques. Production-ready notebooks.
-</p>
+An end-to-end data engineering and machine learning pipeline to collect historical match statistics from FBref and predict Premier League fixture outcomes.
 
 ---
 
