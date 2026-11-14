@@ -118,11 +118,11 @@ time.sleep(3)
 
 Predicting match victory is framed as a supervised binary classification problem:
 
-$$\text{target} = \begin{cases} 1 & \text{if Result} = \text{'W'} \\ 0 & \text{otherwise (Draw or Loss)} \end{cases}$$
+$$\text{target} = \begin{cases} 1 & \text{if Result = 'W'} \\ 0 & \text{otherwise} \end{cases}$$
 
 To prevent data leakage and simulate live deployment, the dataset is partitioned chronologically rather than through random shuffling:
-- **Training Corpus:** All fixtures contested prior to January 1, 2022 ($N = 872$).
-- **Test Evaluation Set:** All fixtures contested from January 1, 2022 onward ($N = 517$).
+- **Training Corpus:** All fixtures contested prior to January 1, 2022 (872 rows).
+- **Test Evaluation Set:** All fixtures contested from January 1, 2022 onward (517 rows).
 
 **Step 2: Baseline Model Architecture**
 
@@ -130,13 +130,13 @@ An initial baseline model is trained using four situational attributes:
 - `venue_code`: Categorical encoding of venue (Home = 1, Away = 0)
 - `opp_code`: Categorical integer identifier of the opposing squad
 - `hour`: Match start time extracted from fixture schedule
-- `day_code`: Integer representation of the day of the week ($0 = \text{Monday}, 6 = \text{Sunday}$)
+- `day_code`: Integer representation of the day of the week (0 = Monday, 6 = Sunday)
 
-A Random Forest classifier ($n_{\text{estimators}} = 50, \text{min\_samples\_split} = 10, \text{random\_state} = 1$) is fitted on the training split:
+A Random Forest classifier (`n_estimators=50, min_samples_split=10, random_state=1`) is fitted on the training split:
 
-$$\text{Accuracy} = \frac{\text{TP} + \text{TN}}{\text{TP} + \text{TN} + \text{FP} + \text{FN}} = 61.23\%$$
+$$\text{Accuracy} = \frac{\text{TP} + \text{TN}}{\text{TP} + \text{TN} + \text{FP} + \text{FN}} = 0.6123$$
 
-$$\text{Precision} = \frac{\text{TP}}{\text{TP} + \text{FP}} = \frac{28}{28 + 31} = 47.46\%$$
+$$\text{Precision} = \frac{\text{TP}}{\text{TP} + \text{FP}} = \frac{28}{28 + 31} = 0.4746$$
 
 The low precision indicates a high false-positive rate: the baseline model frequently over-predicts wins without knowledge of recent squad form.
 
@@ -180,7 +180,7 @@ By merging the prediction table against itself on matching `date` and normalized
 
 Excerpts from the final reconciled prediction frame in `prediction.ipynb`:
 
-| Match Date | Club ($A$) | Opponent ($B$) | Result | $\hat{y}_A$ | $\hat{y}_B$ | Consensus Output | Actual Winner |
+| Match Date | Club ($A$) | Opponent ($B$) | Result | Predicted ($A$) | Predicted ($B$) | Consensus Output | Actual Winner |
 |:---:|:---|:---|:---:|:---:|:---:|:---:|:---:|
 | `2022-02-24` | Arsenal | Wolves | W | 1 | 0 | **Arsenal Win** | Arsenal (2–1) |
 | `2022-03-06` | Arsenal | Watford | W | 1 | 0 | **Arsenal Win** | Arsenal (3–2) |
@@ -229,14 +229,14 @@ jupyter notebook
 | Tabular Ingestion | pandas (`read_html`) | Parsing web tables directly into tabular structures |
 | Data Processing | pandas & NumPy | MultiIndex flattening, temporal sorting, rolling aggregates |
 | Classification | scikit-learn | RandomForestClassifier, evaluation metrics |
-| Cross-Validation | Temporal Split | Lookahead-free out-of-time evaluation ($T < \text{2022}$) |
+| Cross-Validation | Temporal Split | Lookahead-free out-of-time evaluation |
 | Environment | Jupyter Notebook | Interactive model execution and markdown documentation |
 
 ---
 
 ## Future Enhancements
 
-1. **Expected Goals (xG) Momentum Modelling:** Incorporate trailing expected goal differential ($\Delta \text{xG} = \text{xG} - \text{xGA}$) into the rolling window to distinguish finishing variance from underlying chance quality.
+1. **Expected Goals (xG) Momentum Modelling:** Incorporate trailing expected goal differential into the rolling window to distinguish finishing variance from underlying chance quality.
 2. **Multi-Class Prediction Architecture:** Extend the target formulation from binary classification (Win vs. Non-Win) to a three-class Softmax model capturing Draws explicitly.
 3. **Player Availability and Lineup Volatility:** Scrape starting XI rosters and tactical formations to account for key player injuries and defensive rotation.
 4. **Opponent-Adjusted Metrics:** Scale rolling shot metrics against the historical defensive strength of the previous opponents to normalize performance figures.
