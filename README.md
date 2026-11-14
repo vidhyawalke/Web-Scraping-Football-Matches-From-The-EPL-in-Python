@@ -1,209 +1,174 @@
-<div align="center">
+# Web Scraping Football Matches From The EPL in Python
 
-<img src="https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/Premier_League_Logo.svg/1200px-Premier_League_Logo.svg.png" width="120" alt="EPL Logo"/>
+A complete, end-to-end data collection pipeline for English Premier League match statistics, built with the Requests, Beautiful Soup, and pandas libraries.
 
-# ⚽ Web Scraping Football Matches From The EPL in Python
+Real data. Real scraping. Production-ready notebook.
 
-**A complete, production-ready web scraper for English Premier League match data — built with Requests, Beautiful Soup & pandas.**
+## Overview
 
-[![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![Jupyter](https://img.shields.io/badge/Jupyter-Notebook-orange?style=for-the-badge&logo=jupyter&logoColor=white)](https://jupyter.org)
-[![Pandas](https://img.shields.io/badge/Pandas-Data%20Analysis-150458?style=for-the-badge&logo=pandas&logoColor=white)](https://pandas.pydata.org)
-[![BeautifulSoup](https://img.shields.io/badge/BeautifulSoup4-HTML%20Parsing-green?style=for-the-badge)](https://www.crummy.com/software/BeautifulSoup/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
+This project implements the first part of a two-part machine learning series focused on predicting the outcome of English Premier League football matches. Before any prediction model can be built, the underlying dataset must be constructed from scratch, which is the entire purpose of this notebook.
 
-<br/>
+The data source is [FBref.com](https://fbref.com), a Sports Reference property that publishes granular football statistics at the squad, player, and match level. For every EPL team across three seasons, two separate pages are scraped per team per season: the Scores and Fixtures table, which records each match and its result, and the Shooting table, which records per-match shot volume and quality metrics. The two tables are cleaned, merged on the match date, and filtered to retain only Premier League fixtures. At the end of the pipeline, a single consolidated CSV file is written to disk containing every scraped row ready for feature engineering and modelling.
 
-> **Part 1 of 2** · This project scrapes and cleans EPL match data for every team across multiple seasons.  
-> **Part 2** will use this data to build a machine learning model that predicts match winners.
+The scraper navigates between seasons automatically by following the Previous Season hyperlink on the standings page, so adding further seasons requires only updating the year list.
 
-[🚀 Quick Start](#-quick-start) · [📓 Notebook](#-notebook-walkthrough) · [📊 Dataset](#-dataset-overview) · [🛠 Tech Stack](#-tech-stack) · [🗺 Roadmap](#-roadmap)
+## Acknowledgement
 
-</div>
+This project was guided by the structured walkthrough provided by [Dataquest](https://www.dataquest.io/) as part of their project-based learning curriculum:
 
----
+[Web Scraping Football Matches From The EPL in Python](https://www.dataquest.io/) — Dataquest Data Engineering Project
 
-## 📌 Project Overview
+All match and shooting statistics are sourced from FBref, which aggregates data licensed from Opta. When using this data for published work, credit Sports Reference accordingly:
 
-The **English Premier League (EPL)** is the top professional football league in England, featuring 20 clubs competing in a 38-match season. This project is the **first part** of a two-part machine learning series:
+Sports Reference LLC. FBref: Football Statistics and History. Retrieved from https://fbref.com
 
-| Part | Goal | Status |
-|------|------|--------|
-| **Part 1 — This repo** | Scrape & clean EPL match data | ✅ Complete |
-| **Part 2** | Predict match winners with ML | 🔜 Coming soon |
+## Dataset
 
-We scrape structured match data from **[FBref.com](https://fbref.com)**, one of the most comprehensive football statistics websites, covering:
+This project does not ship with a pre-built dataset. The notebook generates `matches.csv` by scraping FBref at runtime. The table below describes the pages scraped for each team.
 
-- ✅ Match results (scores, venues, referees)
-- ✅ Shooting statistics (shots, shots on target, distance, free kicks, penalties)
-- ✅ Multiple EPL seasons: **2020–21, 2021–22, 2022–23**
-- ✅ All **20 EPL clubs** per season
-- ✅ Clean, merged output saved as `matches.csv`
+| Page | FBref Table ID | Content |
+|------|----------------|---------|
+| Team overview | `matchlogs_for` | Scores and Fixtures for the season |
+| Shooting tab | `shooting` | Per-match shot and penalty statistics |
 
----
+The pipeline covers three EPL seasons by default.
 
-## 📸 Preview
+| Season | Teams Scraped | Approximate Rows |
+|--------|---------------|------------------|
+| 2020–21 | 20 | ~760 |
+| 2021–22 | 20 | ~760 |
+| 2022–23 | 20 | ~760 |
+
+The output file `matches.csv` is registered in `.gitignore` and is not tracked in version control. It must be generated locally by running the notebook.
+
+## Project Structure
 
 ```
-   Date         Time  Comp  Round         Day  Venue    Result  GF  GA  Opponent        Sh  SoT  Dist  FK  PK  PKatt   team                 season
-0  2022-08-05   20:00  Premier League  Matchweek 1  Fri  Home     W   2   0   West Ham       15   8    15.3   0   0    0   Manchester City 2022
-1  2022-08-13   15:00  Premier League  Matchweek 2  Sat  Away     W   4   0   Bournemouth    22  10    13.8   1   0    0   Manchester City 2022
-2  2022-08-20   12:30  Premier League  Matchweek 3  Sat  Home     W   4   2   Crystal Palace 18   9    14.1   0   0    0   Manchester City 2022
-...
+Web-Scraping-Football-Matches-From-The-EPL-in-Python/
+├── scraping.ipynb
+├── requirements.txt
+├── .gitignore
+├── LICENSE
+└── README.md
 ```
 
----
+The `matches.csv` output file is excluded from version control via `.gitignore` due to file size and reproducibility considerations.
 
-## 🚀 Quick Start
+## Methodology
 
-### 1. Prerequisites
+### Step 1: Standings Page and Team URL Extraction
 
-Make sure you have **Python 3.8+** installed. Check with:
-```bash
-python --version
+The entry point for each season is the EPL standings page on FBref, for example:
+
+```
+https://fbref.com/en/comps/9/2021-2022/2021-2022-Premier-League-Stats
 ```
 
-### 2. Clone the Repository
+The page is downloaded using `requests.get`. Beautiful Soup then selects the first element matching `table.stats_table`, which corresponds to the League Table. All anchor tags within that table are extracted, and the `href` attributes are filtered to retain only those whose path contains `/squads/`. These 20 paths are prepended with the FBref domain to form absolute team URLs.
+
+The Previous Season button on the standings page carries its own `href` pointing to the prior season's equivalent page. That href is extracted using `soup.select("a.prev")[0]` and re-assigned to the standings URL variable before the next loop iteration, allowing the scraper to walk backwards through seasons without hardcoding per-season URLs.
+
+### Step 2: Match Log Scraping
+
+For each team URL, the HTML is downloaded and passed directly to `pandas.read_html` with the keyword argument `match="Scores & Fixtures"`. This instructs pandas to locate the table whose caption or header contains that exact string and parse it into a DataFrame in a single call. The result contains one row per match with columns for date, time, competition, round, venue, result, goals for, goals against, opponent, and several other fields.
+
+### Step 3: Shooting Statistics Scraping
+
+From the same downloaded team page, Beautiful Soup extracts all anchor tags and filters for those whose `href` contains the string `shooting`. The first matching path is prepended with the FBref domain to form the shooting stats URL. That page is then downloaded and passed to `pandas.read_html` with `match="Shooting"`.
+
+The shooting table on FBref uses a two-level MultiIndex column structure, where the top level carries a category label such as `Standard` and the bottom level carries the actual column name such as `Sh`. Before the DataFrame can be merged, the top level is dropped using:
+
+```python
+shooting.columns = shooting.columns.droplevel()
+```
+
+This flattens the column index to single-level strings, making the DataFrame compatible with standard merge operations.
+
+### Step 4: Merging and Filtering
+
+The matches DataFrame and the shooting DataFrame are joined on the `Date` column using an inner merge:
+
+```python
+team_df = matches.merge(
+    shooting[["Date", "Sh", "SoT", "Dist", "FK", "PK", "PKatt"]],
+    on="Date"
+)
+```
+
+Only the six shooting columns with direct analytical value are retained from the right-hand frame: total shots (`Sh`), shots on target (`SoT`), average shot distance in yards (`Dist`), free kick shots (`FK`), penalty kicks scored (`PK`), and penalty kicks attempted (`PKatt`).
+
+After merging, rows with null values in `Sh` or `SoT` are dropped to remove match entries for which shooting data was not published. The DataFrame is then filtered to retain only rows where the `Comp` column equals `"Premier League"`, excluding cup and European fixtures that appear in the Scores and Fixtures table but are outside the scope of this project.
+
+Two columns are appended before the DataFrame is added to the accumulator list: `team`, derived by splitting the team URL on `/` and stripping the `-Stats` suffix, and `season`, set to the loop year integer.
+
+### Step 5: Rate Limiting
+
+A `time.sleep(3)` call is placed at the end of each team iteration. Without this delay, issuing upwards of 120 HTTP requests in rapid succession would likely trigger FBref's rate limiter and result in temporary IP blocks. The three-second interval keeps request frequency well within acceptable bounds for personal and educational use.
+
+## Sample Output
+
+The table below shows a representative slice of `matches.csv` for Manchester City in the 2022–23 season.
+
+| Date | Venue | Result | GF | GA | Opponent | Sh | SoT | Dist | FK | PK | PKatt | team | season |
+|------|-------|--------|----|----|----------|----|-----|------|----|----|-------|------|--------|
+| 2022-08-05 | Home | W | 2 | 0 | West Ham | 15 | 8 | 15.3 | 0 | 0 | 0 | Manchester City | 2022 |
+| 2022-08-13 | Away | W | 4 | 0 | Bournemouth | 22 | 10 | 13.8 | 1 | 0 | 0 | Manchester City | 2022 |
+| 2022-08-20 | Home | W | 4 | 2 | Crystal Palace | 18 | 9 | 14.1 | 0 | 0 | 0 | Manchester City | 2022 |
+
+The `team` and `season` columns are essential for the prediction model in Part 2, as they provide the grouping keys for computing rolling performance features across matchweeks.
+
+## Quickstart
+
+**1. Clone the repository**
 
 ```bash
 git clone https://github.com/vidhyawalke/Web-Scraping-Football-Matches-From-The-EPL-in-Python.git
 cd Web-Scraping-Football-Matches-From-The-EPL-in-Python
 ```
 
-### 3. Install Dependencies
+**2. Install dependencies**
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Or install manually:
+**3. Launch the notebook**
 
 ```bash
-pip install requests beautifulsoup4 pandas lxml
-```
-
-### 4. Launch the Notebook
-
-```bash
-jupyter lab scraping.ipynb
-# or
 jupyter notebook scraping.ipynb
 ```
 
-### 5. Run All Cells
+Execute the cells sequentially. Steps 1 through 6 demonstrate the pipeline on a single team. Step 7 runs the full multi-season, multi-team loop and writes `matches.csv` to the project root.
 
-Execute the notebook from top to bottom. When the full scraping loop completes, you'll find `matches.csv` in the project folder.
+**Note:** The full scraping loop in Step 7 takes approximately 30 to 60 minutes to complete. This is a function of the deliberate 3-second sleep between requests and is not a performance issue.
 
-> ⏳ **Note:** The full multi-season scrape (Step 7) takes ~30–60 minutes due to the polite 3-second sleep between requests. This is intentional to avoid overwhelming FBref's servers.
+## Tech Stack
 
----
+| Component | Technology | Role |
+|-----------|------------|------|
+| HTTP Client | requests | Downloading HTML pages from FBref |
+| HTML Parsing | Beautiful Soup 4 | Navigating the DOM and extracting links |
+| Table Parsing | pandas `read_html` | Parsing HTML tables directly into DataFrames |
+| Column Cleaning | pandas MultiIndex | Flattening two-level column headers |
+| Data Merging | pandas `merge` | Joining match and shooting tables on date |
+| Rate Limiting | time | Polite request pacing to avoid server bans |
+| Runtime | Jupyter Notebook | Interactive step-by-step execution |
 
-## 📓 Notebook Walkthrough
+## Future Enhancements
 
-The notebook is broken into **8 clearly documented steps**:
+**Part 2 — Machine Learning Prediction:** The `matches.csv` file produced here will feed directly into a supervised classification model in Part 2 of this series. Planned feature engineering steps include rolling averages of `Sh`, `SoT`, and goal difference over the previous five matchweeks, home and away performance splits, and opponent strength ratings derived from league position.
 
-```
-scraping.ipynb
-│
-├── Step 1  → Import libraries (requests, BeautifulSoup, pandas, time)
-├── Step 2  → Download the EPL 2021–22 standings page
-├── Step 3  → Parse all 20 team URLs from the League Table
-├── Step 4  → Scrape "Scores & Fixtures" for Manchester City
-├── Step 5  → Scrape shooting stats from the Shooting tab
-├── Step 6  → Clean multi-level index & merge both DataFrames
-├── Step 7  → Loop: all teams × all seasons → accumulate DataFrames
-└── Step 8  → Concat everything → save to matches.csv
-```
+**Expanded Season Coverage:** The year list can be extended to include seasons prior to 2020–21 without any change to the scraping logic, provided FBref's page structure remains consistent.
 
----
+**Incremental Updates:** A secondary script could be built to append only the most recently played matchweek to an existing `matches.csv` rather than re-scraping the entire dataset each time.
 
-## 📊 Dataset Overview
+**Opponent Statistics:** Currently each row records only the target team's shooting stats. A merge on the same date filtered by the opposing team's row would add opponent-side shooting metrics, which carry meaningful predictive signal for match outcome models.
 
-The output `matches.csv` contains the following columns:
+## Getting Help
 
-| Column | Description |
-|--------|-------------|
-| `Date` | Match date |
-| `Time` | Kick-off time |
-| `Comp` | Competition (filtered to Premier League) |
-| `Round` | Matchweek |
-| `Day` | Day of the week |
-| `Venue` | Home or Away |
-| `Result` | W / D / L |
-| `GF` | Goals scored by the team |
-| `GA` | Goals conceded |
-| `Opponent` | Opposing team |
-| `Sh` | Total shots |
-| `SoT` | Shots on target |
-| `Dist` | Average shot distance (yards) |
-| `FK` | Free kick shots |
-| `PK` | Penalty kicks scored |
-| `PKatt` | Penalty kicks attempted |
-| `team` | Team name *(added)* |
-| `season` | Season year *(added)* |
+If you encounter issues or have questions, please open an issue in the [GitHub Issue Tracker](https://github.com/vidhyawalke/Web-Scraping-Football-Matches-From-The-EPL-in-Python/issues).
 
----
+## Maintainer
 
-## 🛠 Tech Stack
-
-| Tool | Purpose |
-|------|---------|
-| [**Python 3.8+**](https://python.org) | Core language |
-| [**Requests**](https://requests.readthedocs.io) | Downloading HTML pages |
-| [**Beautiful Soup 4**](https://www.crummy.com/software/BeautifulSoup/bs4/doc/) | Parsing HTML & extracting links |
-| [**pandas**](https://pandas.pydata.org) | Reading tables, merging, cleaning data |
-| [**lxml**](https://lxml.de) | Fast HTML parser backend for pandas |
-| [**Jupyter Lab / Notebook**](https://jupyter.org) | Interactive development environment |
-| [**FBref.com**](https://fbref.com) | Data source (football statistics) |
-
----
-
-## 🗺 Roadmap
-
-- [x] Scrape match results (Scores & Fixtures)
-- [x] Scrape shooting stats
-- [x] Merge & clean the two DataFrames
-- [x] Scale to multiple teams & seasons
-- [x] Export to `matches.csv`
-- [ ] Part 2: Feature engineering (rolling averages, home/away form)
-- [ ] Part 2: Train ML model (Random Forest / XGBoost)
-- [ ] Part 2: Evaluate & tune model accuracy
-- [ ] Part 2: Predict upcoming EPL match winners
-
----
-
-## 🤝 Contributing
-
-Contributions, issues, and feature requests are welcome!  
-Feel free to open an [issue](https://github.com/vidhyawalke/Web-Scraping-Football-Matches-From-The-EPL-in-Python/issues) or submit a pull request.
-
-1. Fork the repo
-2. Create your feature branch: `git checkout -b feature/my-feature`
-3. Commit your changes: `git commit -m 'Add my feature'`
-4. Push to the branch: `git push origin feature/my-feature`
-5. Open a Pull Request
-
----
-
-## 📄 License
-
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
-
----
-
-## 🙏 Acknowledgements
-
-- **[FBref.com](https://fbref.com)** — the incredible football data source powering this project
-- **[Dataquest](https://www.dataquest.io)** — project inspiration & walkthrough reference → [solution notebook](https://github.com/dataquestio/project-walkthroughs/blob/master/football_matches/scraping.ipynb)
-- **[Beautiful Soup docs](https://www.crummy.com/software/BeautifulSoup/bs4/doc/)** — HTML parsing made easy
-- **[Requests docs](https://requests.readthedocs.io/en/latest/)** — HTTP for Humans
-
----
-
-<div align="center">
-
-Made with ❤️ and ⚽ by [**Vidhya Walke**](https://github.com/vidhyawalke)
-
-⭐ Star this repo if you found it helpful!
-
-</div>
+Built and maintained by [Vidhya Walke](https://github.com/vidhyawalke).  
+Contributions and feedback are welcome through pull requests and issues.
