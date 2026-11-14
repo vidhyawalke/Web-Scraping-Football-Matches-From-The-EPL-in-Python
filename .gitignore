@@ -7,10 +7,6 @@ __pycache__/
 .ipynb_checkpoints/
 *.ipynb_checkpoints
 
-# Output data files
-matches.csv
-*.csv
-
 # Virtual environments
 venv/
 env/
